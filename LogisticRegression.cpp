@@ -1,13 +1,25 @@
 #include<Eigen/Dense>
 #include<iostream>
+#include<cassert>
+#include<stdexcept>
 class LogisticRegression{
     private:
         Eigen::VectorXd W;
         double b;
+        bool ridge = false;
+        bool lasso = false;
+        double lambda = 0.0;
     public:
-        LogisticRegression(int numFeatures){
-            W = Eigen::VectorXd::Zero(numFeatures);
-            b = 0.0f;
+        LogisticRegression(int numFeatures, bool ridge_ = false, bool lasso_ = false,  double lambda_ = 0.0)
+        : W(Eigen::VectorXd::Zero(numFeatures)),
+        ridge(ridge_),
+        lasso(lasso_),
+        lambda(lambda_)
+        {
+            if((ridge || lasso) && lambda <= 0.0)
+                throw std::invalid_argument("lambda must be > 0 when regualarization is enabled");
+            if(!ridge && !lasso && lambda != 0.0)
+                throw std::invalid_argument("lambda given but no regularization enabled");
         }
 
         Eigen::VectorXd predict(const Eigen::MatrixXd& X){
@@ -28,6 +40,11 @@ class LogisticRegression{
                 + (1.0 - y.array()) * (1.0 - y_hat.array() + eps).log() 
             ).mean();
 
+            if (ridge)
+                loss += W.squaredNorm() * (lambda/(2.0 * y.size()));
+            if (lasso)
+                loss += W.lpNorm<1>() * (lambda/y.size());
+
             return loss;
         }
 
@@ -44,6 +61,10 @@ class LogisticRegression{
                 Eigen::MatrixXd dW = (1/m) * (X.transpose() * dz);
                 double db = (1/m) * dz.sum();
                 
+                if(ridge)
+                    dW += (lambda/m) * W;
+                if(lasso)
+                    dW += (lambda/m) * W.array().sign().matrix();
                 W.array() -= lr * dW.array();
                 b -= lr * db;
             }
@@ -61,7 +82,7 @@ int main(){
          8,6;
     Eigen::VectorXd Y(6);
     Y << 0,0,0,1,1,1;
-    LogisticRegression Model(2);
+    LogisticRegression Model(2,false, true, 0.01);
     Model.train(X,Y,100000,0.1);
 
     Eigen::VectorXd Y_hat = Model.predict(X);
