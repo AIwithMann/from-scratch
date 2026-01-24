@@ -1,7 +1,6 @@
 #include <Eigen/Dense>
 #include <cassert>
-#include <iostream>
-#include <string>
+#include <iostream> 
 #include <stdexcept>
 
 class LinearRegression {
@@ -10,19 +9,27 @@ private:
     double b = 0.0;
     bool ridge = false;
     bool lasso = false;
-    double lambda = 0.0;
+    double lambdaL1 = 0.0;
+    double lambdaL2 = 0.0;
 
 public:
-    LinearRegression(int numFeatures, bool ridge_ = false, bool lasso_ = false, double lambda_ = 0.0)
+    LinearRegression(int numFeatures, bool ridge_ = false, bool lasso_ = false, double lambdaL1_ = 0.0, double lambdaL2_ = 0.0)
         : W(Eigen::VectorXd::Zero(numFeatures)),
         ridge(ridge_),
         lasso(lasso_),
-        lambda(lambda_)
+        lambdaL1(lambdaL1_),
+        lambdaL2(lambdaL2_)
     {
-        if((ridge || lasso) && lambda <= 0.0)
+        if((ridge || lasso) && (lambdaL1 <= 0.0 && lambdaL2 <= 0.0))
             throw std::invalid_argument("lambda must be > 0 when regualarization is enabled");
-        if(!ridge && !lasso && lambda != 0.0)
+        if(!ridge && !lasso && (lambdaL1 != 0.0 || lambdaL2 != 0.0))
             throw std::invalid_argument("lambda given but no regularization enabled");
+        if(ridge && lasso && (lambdaL1 <= 0.0 || lambdaL2 <= 0.0))
+            throw std::invalid_argument("both lambda1 (ridge) and lambda2 (lasso) must be > 0 for elastic net");
+        if(ridge && !lasso && lambdaL2 <= 0.0)
+            throw std::invalid_argument("lambda1 not given");
+        if(!ridge && lasso && lambdaL1 <= 0.0)
+            throw std::invalid_argument("lambda2 not given");
     }
 
     Eigen::VectorXd predict(const Eigen::MatrixXd& X) {
@@ -36,10 +43,12 @@ public:
         assert(y.size() == y_hat.size());
         double mse = (y_hat - y).squaredNorm()/y.size();
         
-        if (ridge)
-            mse += W.squaredNorm() * lambda;
-        if (lasso)
-            mse += W.lpNorm<1>() * lambda;
+        if(ridge && lasso)
+            mse += W.squaredNorm() * lambdaL2 + W.lpNorm<1>() * lambdaL1;
+        else if (ridge)
+            mse += W.squaredNorm() * lambdaL2;
+        else if (lasso)
+            mse += W.lpNorm<1>() * lambdaL1;
         return mse;
     }
 
@@ -55,11 +64,12 @@ public:
 
             Eigen::VectorXd dW = (2.0 / X.rows()) * X.transpose() * e;
             double db = (2.0 / X.rows()) * e.sum();
-            
-            if(ridge) 
-                dW += 2.0 * lambda * W;
-            if(lasso)
-                dW += lambda * W.array().sign().matrix();
+            if(ridge && lasso)
+                dW += 2.0 * lambdaL2 * W + lambdaL1 * W.array().sign().matrix();
+            else if(ridge) 
+                dW += 2.0 * lambdaL2 * W;
+            else if(lasso)
+                dW += lambdaL1 * W.array().sign().matrix();
             W -= lr * dW;
             b -= lr * db;
         }
@@ -83,7 +93,7 @@ int main(){
     Eigen::VectorXd Y(8);
     Y << 13, 12, 11, 14, 16, 15, 15, 17;
 
-    LinearRegression Model(2, false, true, 0.01);
+    LinearRegression Model(2, true, true, 0.001, 0.001);
     Model.train(X, Y, 100000,0.1);
     
     Eigen::VectorXd Y_hat = Model.predict(X);
