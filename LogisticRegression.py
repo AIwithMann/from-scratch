@@ -1,16 +1,24 @@
 import numpy as np
 
 class LogisticRegression:
-    def __init__(self,numFeatures:int, ridge_:bool = False, lasso_:bool = False, lambda_:float  = 0.0):
+    def __init__(self,numFeatures:int, ridge_:bool = False, lasso_:bool = False, lambda_l1_:float  = 0.0, lambda_l2_ = 0.0):
         self.W = np.zeros(shape = (numFeatures), dtype = np.float64)
         self.b = 0.0
         self.ridge = ridge_
         self.lasso = lasso_
-        self.lmbda = lambda_
-        if (self.ridge or self.lasso) and self.lmbda <= 0.0:
+        self.lambda_l1 = lambda_l1_
+        self.lambda_l2 = lambda_l2_
+        if (self.ridge or self.lasso) and (self.lambda_l1 <= 0.0 and self.lambda_l2 <= 0.0):
             raise Exception("lambda must be > 0 when regularization is enabled")
-        if(not self.ridge and not self.lasso and self.lmbda !=0.0):
-            raise Exception("lambda given but no regularization enabled"); 
+        if not self.ridge and not self.lasso and (self.lambda_l1 != 0.0 and self.lambda_l2 != 0.0):
+            raise Exception("lambda given but no regularization enabled");
+        if(self.ridge and self.lasso and (self.lambda_l1 <= 0.0 or self.lambda_l2 <= 0.0)):
+            raise Exception("both lambda_l2 (ridge) and lambda_l1 (lasso) must be > 0 for elastic net")
+        if(self.ridge and not self.lasso and self.lambda_l2 <= 0.0):
+            raise Exception("lambda_l2 must be > 0 for ridge")
+        if(not self.ridge and self.lasso and self.lambda_l1 <= 0.0):
+            raise Exception("lambda_l1 must be > 0 for lasso")
+
         
     def predict(self,X:np.ndarray):
         assert X.shape[1] == self.W.size
@@ -26,10 +34,10 @@ class LogisticRegression:
 
         
         if self.ridge:
-            loss += (self.lmbda/(2 * y.size)) * np.sum(self.W ** 2)
+            loss += (self.lambda_l2/(2 * y.size)) * np.sum(self.W ** 2)
 
         if self.lasso:
-            loss += (self.lmbda/y.size) * np.sum(np.abs(self.W))
+            loss += (self.lambda_l1/y.size) * np.sum(np.abs(self.W))
 
 
         return loss
@@ -46,9 +54,9 @@ class LogisticRegression:
             db = (1/dz.size) * np.sum(dz)
             
             if self.ridge:
-                dW += (self.lmbda/dz.size) * self.W 
+                dW += (self.lambda_l2/dz.size) * self.W 
             if self.lasso:
-                dW += (self.lmbda/dz.size) * np.sign(self.W)
+                dW += (self.lambda_l1/dz.size) * np.sign(self.W)
 
             self.W -= lr * dW
             self.b -= lr * db
@@ -63,7 +71,7 @@ X = np.array([
 ])
 y = np.array([0,0,0,1,1,1])
 
-model = LogisticRegression(2, True, False, 0.01)
+model = LogisticRegression(2, True, True, 0.01, 0.01)
 model.train(X, y, 100000, 2)
 y_hat = model.predict(X)
 loss = model.loss(y, y_hat)
