@@ -28,11 +28,9 @@ class LinearRegression:
     def loss(self,y:np.ndarray, y_hat:np.ndarray):
         assert y.shape == y_hat.shape
         mse  = np.sum((y_hat - y) ** 2) /y.size 
-        if(self.ridge and self.lasso):
-            mse += self.lambda_l1 * np.sum(np.abs(self.W)) + self.lambda_l2 * np.sum(self.W ** 2)
-        elif self.ridge:
+        if self.ridge:
             mse += self.lambda_l2 * np.sum(self.W ** 2)
-        elif self.lasso:
+        if self.lasso:
             mse += self.lambda_l1 * np.sum(np.abs(self.W))
 
         return mse
@@ -46,12 +44,9 @@ class LinearRegression:
             e = y_hat - y 
             dW = (2.0/X.shape[0]) * X.T @ e
             db = (2.0/X.shape[0]) * e.sum()
-            
-            if self.ridge and self.lasso:
-                dW += 2.0 * self.lambda_l2 * self.W + self.lambda_l1 * np.sign(self.W)
-            elif self.ridge:
+            if self.ridge:
                 dW += 2.0 * self.lambda_l2 * self.W 
-            elif self.lasso:
+            if self.lasso:
                 dW += self.lambda_l1 * np.sign(self.W)
             self.W -= lr * dW 
             self.b -= lr * db 
