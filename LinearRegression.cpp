@@ -42,12 +42,9 @@ public:
     double loss(const Eigen::VectorXd& y, const Eigen::VectorXd& y_hat){
         assert(y.size() == y_hat.size());
         double mse = (y_hat - y).squaredNorm()/y.size();
-        
-        if(ridge && lasso)
-            mse += W.squaredNorm() * lambdaL2 + W.lpNorm<1>() * lambdaL1;
-        else if (ridge)
+        if (ridge)
             mse += W.squaredNorm() * lambdaL2;
-        else if (lasso)
+        if (lasso)
             mse += W.lpNorm<1>() * lambdaL1;
         return mse;
     }
@@ -64,11 +61,9 @@ public:
 
             Eigen::VectorXd dW = (2.0 / X.rows()) * X.transpose() * e;
             double db = (2.0 / X.rows()) * e.sum();
-            if(ridge && lasso)
-                dW += 2.0 * lambdaL2 * W + lambdaL1 * W.array().sign().matrix();
-            else if(ridge) 
+            if(ridge) 
                 dW += 2.0 * lambdaL2 * W;
-            else if(lasso)
+            if(lasso)
                 dW += lambdaL1 * W.array().sign().matrix();
             W -= lr * dW;
             b -= lr * db;
